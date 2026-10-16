@@ -1,98 +1,176 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { supabase } from "../lib/supabase";
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
+type Category = {
+  id: string | number;
+  name?: string;
+  title?: string;
+};
+
+export default function Index() {
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  async function fetchCategories() {
+    setLoading(true);
+    setError("");
+
+    const { data, error: queryError } = await supabase
+      .from("categories")
+      .select("*")
+      .limit(10);
+
+    if (queryError) {
+      setError(queryError.message);
+      setCategories([]);
+    } else {
+      setCategories((data ?? []) as Category[]);
+    }
+
+    setLoading(false);
   }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
+
   return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
+    <SafeAreaView style={styles.container}>
+      <ScrollView contentContainerStyle={styles.content}>
+        <Text style={styles.title}>Test Game</Text>
+        <Text style={styles.subtitle}>Supabase Database Connection</Text>
 
-export default function HomeScreen() {
-  return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
+        <View style={styles.card}>
+          <Text style={styles.label}>Connection Status</Text>
 
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
+          {loading ? (
+            <View style={styles.row}>
+              <ActivityIndicator color="#057DB0" />
+              <Text style={styles.info}>Connecting...</Text>
+            </View>
+          ) : error ? (
+            <Text style={styles.error}>Connection / Query Error: {error}</Text>
+          ) : (
+            <Text style={styles.success}>
+              Connected! Categories loaded: {categories.length}
+            </Text>
+          )}
+        </View>
 
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
+        <Text style={styles.sectionTitle}>Categories</Text>
 
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+        {!loading && !error && categories.length === 0 && (
+          <Text style={styles.info}>
+            No categories found. Add some records in Supabase.
+          </Text>
+        )}
+
+        {categories.map((category) => (
+          <View key={String(category.id)} style={styles.category}>
+            <Text style={styles.categoryName}>
+              {category.name ?? category.title ?? `Category #${category.id}`}
+            </Text>
+            <Text style={styles.categoryId}>ID: {category.id}</Text>
+          </View>
+        ))}
+
+        {!!error && (
+          <Text style={styles.help}>
+            Check your .env credentials, table name, Data API permissions and
+            Row Level Security policies.
+          </Text>
+        )}
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
+    backgroundColor: "#F4F7FB",
   },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
-  },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
+  content: {
+    padding: 24,
+    paddingTop: 40,
   },
   title: {
-    textAlign: 'center',
+    fontSize: 30,
+    fontWeight: "800",
+    color: "#057DB0",
   },
-  code: {
-    textTransform: 'uppercase',
+  subtitle: {
+    fontSize: 15,
+    color: "#64748B",
+    marginTop: 6,
+    marginBottom: 24,
   },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
+  card: {
+    backgroundColor: "#FFFFFF",
+    padding: 20,
+    borderRadius: 16,
+    marginBottom: 28,
+  },
+  label: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 12,
+    color: "#1E293B",
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  info: {
+    color: "#64748B",
+    fontSize: 14,
+    marginTop: 6,
+  },
+  success: {
+    color: "#15803D",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  error: {
+    color: "#DC2626",
+    fontSize: 14,
+  },
+  sectionTitle: {
+    fontSize: 21,
+    fontWeight: "700",
+    color: "#1E293B",
+    marginBottom: 14,
+  },
+  category: {
+    backgroundColor: "#FFFFFF",
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 10,
+  },
+  categoryName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1E293B",
+  },
+  categoryId: {
+    fontSize: 12,
+    color: "#64748B",
+    marginTop: 5,
+  },
+  help: {
+    color: "#64748B",
+    marginTop: 14,
+    lineHeight: 21,
   },
 });
